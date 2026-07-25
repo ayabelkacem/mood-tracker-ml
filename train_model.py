@@ -3,6 +3,7 @@ import psycopg2
 from dotenv import load_dotenv
 import pandas as pd
 import numpy as np
+import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
@@ -66,6 +67,18 @@ def main():
     print(f"\nLinear Regression MAE: {linear_mae:.2f}")
     print(f"Decision Tree MAE: {tree_mae:.2f}")
     print("\n(MAE = average number of mood points the model's predictions are off by)")
+
+    # Pick whichever model actually performed better on unseen data
+    if linear_mae <= tree_mae:
+        best_model = LinearRegression()
+        best_name = "Linear Regression"
+    else:
+        best_model = DecisionTreeRegressor(max_depth=4, random_state=42)
+        best_name = "Decision Tree"
+
+    best_model.fit(X, y)  # retrain the winner on ALL data for the final saved version
+    joblib.dump(best_model, "mood_model.joblib")
+    print(f"\nSaved best model ({best_name}) to mood_model.joblib")
 
 if __name__ == "__main__":
     main()
