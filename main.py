@@ -41,6 +41,12 @@ class Entry(BaseModel):
     created_at: str
 
 
+class CombinedEntry(BaseModel):
+    mood: float
+    sentiment_score: float | None = None
+    sentiment_label: str | None = None
+
+
 @app.get("/")
 def read_root():
     return {"status": "ML service is running"}
@@ -150,3 +156,35 @@ def detect_anomalies(entries: list[Entry]):
             })
 
     return {"anomalies": anomalies, "debug": debug}
+
+
+@app.post("/combined-insight")
+def combined_insight(entries: list[CombinedEntry]):
+    # Only look at entries that actually have sentiment data
+    scored = [e for e in entries if e.sentiment_label is not None]
+
+    if len(scored) < 5:
+        return {"insight": None}
+
+    # Convert sentiment to a rough 1-10 scale for comparison with mood:
+    # positive sentiment -> high end, negative -> low end
+    def sentiment_to_scale(e):
+        base = 7.5 if e.sentiment_label == "positive" else 2.5
+        return base
+
+    recent = scored[-14:] if len(scored) >= 14 else scored
+
+    avg_mood = sum(e.mood for e in recent) / len(recent)
+    avg_sentiment_scaled = sum(sentiment_to_scale(e) for e in recent) / len(recent)
+
+    diff = avg_sentiment_scaled - avg_mood
+
+    if abs(diff) < 1.5:
+        return {"insight": None}
+
+    if diff > 0:
+        message = "Your journal entries have read more positive than your self-reported mood lately — you might be more upbeat in writing than you realize."
+    else:
+        message = "Your self-reported mood has been higher than what your journal entries suggest — worth noticing if there's more going on than the numbers show."
+
+    return {"insight": message}
